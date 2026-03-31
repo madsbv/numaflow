@@ -8,6 +8,7 @@ use tokio_util::sync::CancellationToken;
 use tracing::{error, info, warn};
 
 mod setup_tracing;
+mod telemetry;
 
 /// Build the command line interface.
 mod cmdline;
@@ -149,4 +150,7 @@ async fn shutdown_signal() {
         _ = ctrl_c => {},
         _ = terminate => {},
     }
+
+    info!("Shutting down telemetry...");
+    telemetry::shutdown();
 }

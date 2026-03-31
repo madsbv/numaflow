@@ -6,6 +6,8 @@ use tracing_subscriber::{Layer, filter::EnvFilter, fmt};
 use std::backtrace::{Backtrace, BacktraceStatus};
 use std::panic::PanicHookInfo;
 
+use crate::telemetry;
+
 /// Panic hook to send panic info to `tracing` instead of stderr.
 /// Without this, a panic will be logged to stderr as:
 /// ```
@@ -80,9 +82,15 @@ pub fn register() {
             .boxed()
     };
 
+    let otel_layer = telemetry::init_telemetry().map(Some).unwrap_or_else(|e| {
+        tracing::warn!("Failed to initialize OpenTelemetry: {}", e);
+        None
+    });
+
     tracing_subscriber::registry()
         .with(filter)
         .with(layer)
+        .with(otel_layer)
         .init();
 
     std::panic::set_hook(Box::new(report_panic));
