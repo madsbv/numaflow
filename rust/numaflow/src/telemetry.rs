@@ -1,8 +1,11 @@
 use opentelemetry::KeyValue;
 use opentelemetry::trace::TracerProvider;
+use opentelemetry_otlp::SpanExporter;
 use opentelemetry_otlp::WithExportConfig;
+use opentelemetry_sdk::export::trace::{ExportResult, SpanData};
 use opentelemetry_sdk::{Resource, runtime, trace as sdktrace};
 use std::env;
+use std::error::Error;
 use std::str::FromStr;
 use std::time::Duration;
 use thiserror::Error;
@@ -161,7 +164,7 @@ pub fn resource_attributes() -> Vec<KeyValue> {
     vec![]
 }
 
-fn build_exporter(config: &OtelConfig) -> Result<opentelemetry_otlp::SpanExporter, TelemetryError> {
+fn build_exporter(config: &OtelConfig) -> Result<SpanExporter, TelemetryError> {
     match config.protocol {
         OtlpProtocol::Grpc => opentelemetry_otlp::new_exporter()
             .tonic()
@@ -179,7 +182,7 @@ fn build_exporter(config: &OtelConfig) -> Result<opentelemetry_otlp::SpanExporte
 }
 
 fn build_tracer_provider(
-    exporter: opentelemetry_otlp::SpanExporter,
+    exporter: SpanExporter,
     config: &OtelConfig,
 ) -> Result<sdktrace::TracerProvider, TelemetryError> {
     let resource = Resource::builder()
@@ -200,11 +203,7 @@ pub fn init_telemetry() -> Result<OpenTelemetryLayer<sdktrace::Tracer, Layers>, 
     let config = OtelConfig::from_env();
     let exporter = build_exporter(&config)?;
     let tracer_provider = build_tracer_provider(exporter, &config)?;
-    let tracer = tracer_provider.versioned_tracer(
-        "opentelemetry",
-        Some(env!("CARGO_PKG_VERSION")),
-        Some(opentelemetry::VERSION),
-    );
+    let tracer = tracer_provider.versioned_tracer("opentelemetry", Some(env!("CARGO_PKG_VERSION")));
     let layer = OpenTelemetryLayer::new(tracer);
     Ok(layer)
 }

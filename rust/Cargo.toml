@@ -125,7 +125,7 @@ pin-project = "1.1.5"
 kube = "3.0.1"
 rand = "0.9.2"
 time = "0.3.47"
-opentelemetry = "0.26"
-opentelemetry-otlp = { version = "0.26", default-features = false, features = ["tonic", "reqwest-rustls"] }
-opentelemetry_sdk = { version = "0.26", features = ["rt-tokio"] }
-tracing-opentelemetry = "0.29"
+opentelemetry = "0.31"
+opentelemetry-otlp = { version = "0.31", default-features = false, features = ["tonic", "reqwest-rustls", "trace", "metrics", "logs"] }
+opentelemetry_sdk = { version = "0.31", features = ["rt-tokio"] }
+tracing-opentelemetry = "0.32"
