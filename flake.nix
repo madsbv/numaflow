@@ -17,35 +17,82 @@
       let
         pkgs = import nixpkgs { inherit system; };
       in
+      let
+        buildDeps = with pkgs; [
+          cmake
+          pkg-config
+          protobuf
+        ];
+      in
       {
         devShells.default = pkgs.mkShell {
-          nativeBuildInputs = with pkgs; [
-            # Rust toolchain
-            rustc
-            cargo
-            rust-analyzer
-            rustfmt
-            clippy
+          nativeBuildInputs =
+            buildDeps
+            ++ (with pkgs; [
+              # Rust toolchain is managed by rustup + rust-toolchain.toml;
+              # do not add rustc/cargo/clippy/rustfmt here as nixpkgs ships a
+              # different version (1.94) than the pinned channel (1.93).
+              rustPlatform.bindgenHook
+              rustup
+            ]);
 
-            # Build dependencies
-            protobuf
-            cmake
-            pkg-config
-            clang
-            rustPlatform.bindgenHook
-          ];
-
-          buildInputs = with pkgs; [
-            openssl
-          ];
-
-          # Linux: Use nix clang
-          # CC = "${pkgs.clang}/bin/clang";
-          # LIBCLANG_PATH = "${pkgs.libclang}/lib";
-          # LIBCLANG_PATH = "${pkgs.llvmPackages.libclang}/lib";
-          # KRB5_DIR = "${pkgs.krb5}";
-          # Platform-specific setup
+          # krb5-src builds bundled C sources using the ambient gcc. GCC 15
+          # (shipped by nixpkgs-unstable) defaults to -std=gnu23, which treats
+          # empty parameter lists as zero-argument (C23/C++ semantics). The
+          # krb5 RPC code uses the old "unspecified arguments" style, so we
+          # force the C17 standard to restore the permissive interpretation.
+          CFLAGS = "-std=gnu17";
         };
+
+        apps.build-rust =
+          let
+            script = pkgs.writeShellApplication {
+              name = "build-rust";
+              runtimeInputs = buildDeps ++ [ pkgs.cargo ];
+              text = ''
+                REPO_ROOT="$(pwd)"
+
+                # Map host architecture to Rust target triplet and Docker-style label.
+                ARCH="$(uname -m)"
+                case "$ARCH" in
+                  x86_64)
+                    TARGET="x86_64-unknown-linux-gnu"
+                    LABEL="amd64"
+                    ;;
+                  aarch64)
+                    TARGET="aarch64-unknown-linux-gnu"
+                    LABEL="arm64"
+                    ;;
+                  *)
+                    echo "Unsupported architecture: $ARCH" >&2
+                    exit 1
+                    ;;
+                esac
+
+                # Force C17 to avoid GCC 15 / krb5-src incompatibility.
+                export CFLAGS="-std=gnu17"
+
+                echo "Building Rust workspace for $TARGET …"
+                cargo build \
+                  --manifest-path "$REPO_ROOT/rust/Cargo.toml" \
+                  --workspace \
+                  --release \
+                  --target "$TARGET"
+
+                echo "Copying binaries to repo root …"
+                cp "$REPO_ROOT/rust/target/$TARGET/release/numaflow" \
+                   "$REPO_ROOT/numaflow-rs-linux-$LABEL"
+                cp "$REPO_ROOT/rust/target/$TARGET/release/entrypoint" \
+                   "$REPO_ROOT/entrypoint-linux-$LABEL"
+
+                echo "Done: numaflow-rs-linux-$LABEL and entrypoint-linux-$LABEL are ready."
+              '';
+            };
+          in
+          {
+            type = "app";
+            program = script.outPath + "/bin/build-rust";
+          };
       }
     );
 }
