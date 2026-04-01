@@ -22,19 +22,17 @@
           cmake
           pkg-config
           protobuf
+          yarn
+          rustPlatform.bindgenHook
+          # Rust toolchain is managed by rustup + rust-toolchain.toml;
+          # do not add rustc/cargo/clippy/rustfmt here as nixpkgs ships a
+          # different version (1.94) than the pinned channel (1.93).
+          rustup
         ];
       in
       {
         devShells.default = pkgs.mkShell {
-          nativeBuildInputs =
-            buildDeps
-            ++ (with pkgs; [
-              # Rust toolchain is managed by rustup + rust-toolchain.toml;
-              # do not add rustc/cargo/clippy/rustfmt here as nixpkgs ships a
-              # different version (1.94) than the pinned channel (1.93).
-              rustPlatform.bindgenHook
-              rustup
-            ]);
+          nativeBuildInputs = buildDeps;
 
           # krb5-src builds bundled C sources using the ambient gcc. GCC 15
           # (shipped by nixpkgs-unstable) defaults to -std=gnu23, which treats
@@ -48,7 +46,7 @@
           let
             script = pkgs.writeShellApplication {
               name = "build-rust";
-              runtimeInputs = buildDeps ++ [ pkgs.cargo ];
+              runtimeInputs = buildDeps;
               text = ''
                 REPO_ROOT="$(pwd)"
 
@@ -76,13 +74,12 @@
                 cargo build \
                   --manifest-path "$REPO_ROOT/rust/Cargo.toml" \
                   --workspace \
-                  --release \
-                  --target "$TARGET"
+                  --release 
 
                 echo "Copying binaries to repo root …"
-                cp "$REPO_ROOT/rust/target/$TARGET/release/numaflow" \
+                cp "$HOME/.cargo/target/release/numaflow" \
                    "$REPO_ROOT/numaflow-rs-linux-$LABEL"
-                cp "$REPO_ROOT/rust/target/$TARGET/release/entrypoint" \
+                cp "$HOME/.cargo/target/release/entrypoint" \
                    "$REPO_ROOT/entrypoint-linux-$LABEL"
 
                 echo "Done: numaflow-rs-linux-$LABEL and entrypoint-linux-$LABEL are ready."
